@@ -1,59 +1,41 @@
-body {
+html, body {
     margin: 0;
     padding: 0;
-    background: black;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    touch-action: none;
+    background-color: black;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+canvas {
+    display: block;
+}
+
+#mobile-controls {
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
     display: flex;
     justify-content: center;
-    align-items: center;
-    height: 100vh;
-  }
-  
-  #game-container {
-    width: 800px;
-    height: 600px;
-    position: relative;
-    background-color: #000;
-  }
-  
-  /* כפתורי מובייל */
-  #mobile-controls {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 15px;
-  }
-  
-  #mobile-controls button {
-    width: 60px;
-    height: 60px;
-    background-color: #444;
-    color: #fff;
-    border: 2px solid #888;
-    border-radius: 50%;
-    font-size: 24px;
-    font-weight: bold;
-    cursor: pointer;
+    gap: 10px;
+}
+
+button {
     outline: none;
-    transition: background-color 0.2s, transform 0.2s;
-  }
-  
-  #mobile-controls button:active {
-    background-color: #666;
-    transform: scale(0.95);
-  }
-  
-  /* רספונסיביות למסכים צרים */
-  @media (max-width: 600px) {
-    #mobile-controls button {
-      width: 50px;
-      height: 50px;
-      font-size: 18px;
-    }
-    #game-container {
-      width: 100vw;
-      height: 100vh;
-    }
-  }
-  
+    border: none;
+    background-color: rgba(255, 255, 255, 0.3);
+    padding: 15px;
+    font-size: 24px;
+    border-radius: 10px;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+button:focus {
+    outline: none;
+}
