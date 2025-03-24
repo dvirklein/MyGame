@@ -1,7 +1,260 @@
+/*************************************************
+ * 1) הגדרת המחלקות StartScene ו-MainScene
+ *************************************************/
+
+// מסך פתיחה
+class StartScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'StartScene' });
+    }
+
+    preload() {
+        // טעינת הנכסים הדרושים למסך הפתיחה (לוגו, רקע וכו')
+        this.load.image('background', 'assets/background.png');
+        // ניתן לטעון כאן עוד נכסים שרוצים להציג במסך הפתיחה
+    }
+
+    create() {
+        // רקע
+        this.add.tileSprite(
+            window.innerWidth / 2,
+            window.innerHeight / 2,
+            window.innerWidth,
+            window.innerHeight,
+            'background'
+        );
+
+        let titleText = this.add.text(
+            window.innerWidth / 2,
+            window.innerHeight / 2 - 50,
+            'ברוכים הבאים!',
+            {
+                fontSize: window.innerWidth < 600 ? '30px' : '40px',
+                fill: '#fff'
+            }
+        ).setOrigin(0.5);
+
+        let instructionText = this.add.text(
+            window.innerWidth / 2,
+            window.innerHeight / 2,
+            'לחץ על Start כדי להתחיל',
+            {
+                fontSize: window.innerWidth < 600 ? '20px' : '30px',
+                fill: '#fff'
+            }
+        ).setOrigin(0.5);
+
+        let startButton = this.add.text(
+            window.innerWidth / 2,
+            window.innerHeight / 2 + 80,
+            'Start',
+            {
+                fontSize: window.innerWidth < 600 ? '24px' : '36px',
+                fill: '#fff',
+                backgroundColor: '#000',
+                padding: { x: 10, y: 10 }
+            }
+        ).setOrigin(0.5).setInteractive();
+
+        // מעבר לסצנת המשחק בלחיצה
+        startButton.on('pointerdown', () => {
+            this.cameras.main.fadeOut(500, 0, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('MainScene');
+            });
+        });
+    }
+}
+
+// סצנת המשחק
+class MainScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'MainScene' });
+    }
+
+    preload() {
+        // טעינת נכסים של המשחק
+        this.load.image('background', 'assets/background.png');
+        this.load.image('player', 'assets/player.png');
+        this.load.image('bullet', 'assets/bullet.png');
+        this.load.image('rocketBullet', 'assets/rocketBullet.png');
+        this.load.image('laserBeam', 'assets/laserBeam.png');
+        this.load.image('mushroom', 'assets/mushroom.png');
+        this.load.image('bossMushroom', 'assets/bossMushroom.png');
+        this.load.image('powerupRocket', 'assets/powerupRocket.png');
+        this.load.image('powerupLaser', 'assets/powerupLaser.png');
+        this.load.image('powerupDouble', 'assets/powerupDouble.png');
+
+        this.load.spritesheet('explosion', 'assets/explosion.png', {
+            frameWidth: 64,
+            frameHeight: 64
+        });
+
+        // קולות
+        this.load.audio('startGame', 'assets/startGame.wav');
+        this.load.audio('bgMusic', 'assets/bgMusic.mp3');
+        this.load.audio('shoot', 'assets/shoot.wav');
+        this.load.audio('playerHit', 'assets/playerHit.wav');
+        this.load.audio('gameOver', 'assets/gameOver.wav');
+    }
+
+    create() {
+        mainScene = this;         
+        gameEnded = false;        
+        score = 0;
+        lives = 3;
+        wave = 1;
+
+        // מוזיקת רקע
+        this.sound.play('startGame', { volume: 0.5 });
+        this.bg = this.add.tileSprite(
+            window.innerWidth / 2,
+            window.innerHeight / 2,
+            window.innerWidth,
+            window.innerHeight,
+            'background'
+        );
+        bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.5 });
+        bgMusic.play();
+
+        this.anims.create({
+            key: 'explode',
+            frames: this.anims.generateFrameNumbers('explosion', { start: 0, end: 23 }),
+            frameRate: 20,
+            hideOnComplete: true
+        });
+
+        // יצירת שחקן
+        let playerScale = window.innerWidth < 600 ? 0.6 : 0.4;
+        player = this.physics.add.sprite(window.innerWidth / 2, window.innerHeight - 50, 'player');
+        player.setCollideWorldBounds(true);
+        player.setScale(playerScale);
+
+        // יצירת קבוצות
+        bullets = this.physics.add.group({ maxSize: 30 });
+        mushrooms = this.physics.add.group();
+        powerups = this.physics.add.group();
+
+        // שליטה במקלדת
+        cursors = this.input.keyboard.createCursorKeys();
+
+        // 1) במקום ירי חד-פעמי, נשתמש ב-isShooting:
+        this.input.keyboard.on('keydown-SPACE', () => { isShooting = true; });
+        this.input.keyboard.on('keyup-SPACE', () => { isShooting = false; });
+
+        // כפתורי מובייל
+        setupTouchControls();
+
+        let fontSize = window.innerWidth < 600 ? '16px' : '20px';
+        scoreText = this.add.text(10, 10, 'Score: 0', { fontSize: fontSize, fill: '#fff' });
+        livesText = this.add.text(10, 40, 'Lives: 3', { fontSize: fontSize, fill: '#fff' });
+        waveText = this.add.text(
+            window.innerWidth / 2,
+            window.innerHeight / 2,
+            '',
+            { fontSize: window.innerWidth < 600 ? '30px' : '40px', fill: '#fff' }
+        ).setOrigin(0.5);
+
+        let bestScore = localStorage.getItem('bestScore') || 0;
+        bestScoreText = this.add.text(
+            window.innerWidth - 150,
+            10,
+            `Best: ${bestScore}`,
+            { fontSize: fontSize, fill: '#fff' }
+        );
+
+        this.physics.add.overlap(bullets, mushrooms, hitMushroom, null, this);
+        this.physics.add.overlap(player, mushrooms, mushroomHitsPlayer, null, this);
+        this.physics.add.overlap(player, powerups, takePowerup, null, this);
+
+        startWave();
+
+        // זימון Power-Ups כל 6 שניות
+        this.time.addEvent({
+            delay: 6000,
+            callback: () => {
+                if (!gameEnded) spawnPowerup();
+            },
+            loop: true
+        });
+    }
+
+    update() {
+        this.bg.tilePositionY -= 2;
+        const playerSpeed = window.innerWidth < 600 ? 300 : 200;
+
+        if (cursors.left.isDown || movingLeft) {
+            player.setVelocityX(-playerSpeed);
+        } else if (cursors.right.isDown || movingRight) {
+            player.setVelocityX(playerSpeed);
+        } else {
+            player.setVelocityX(0);
+        }
+
+        // 2) ירי מתמשך: אם המשתמש מחזיק את הכפתור, ותנאי הירי מאופשרים
+        if (isShooting && canShoot && !gameEnded) {
+            shootBullet();
+        }
+
+        bullets.children.each(bullet => {
+            if (bullet.active && bullet.y < -10) {
+                bullet.disableBody(true, true);
+                bullet.setActive(false).setVisible(false);
+            }
+        });
+
+        mushrooms.children.each(mush => {
+            if (mush.active && mush.y > window.innerHeight + 10) {
+                mush.destroy();
+            }
+        });
+    }
+}
+
+/*************************************************
+ * 2) הגדרת משתנים גלובליים
+ *************************************************/
+let mainScene;
+let score = 0, lives = 3, wave = 1;
+let scoreText, livesText, waveText, bestScoreText;
+let canShoot = true, shootDelay = 300;
+let weaponTimer = null, doubleShotTimer = null;
+let mushroomSpeed = 100;
+let waveInProgress = false;
+let doubleShot = false, gameEnded = false;
+
+let player, cursors, bullets, mushrooms, powerups, bgMusic;
+
+// משתנה חדש שמייצג האם המשתמש מחזיק את הכפתור לירי מתמשך
+let isShooting = false;
+
+// לחצני תנועה במובייל
+let movingLeft = false, movingRight = false;
+
+/*************************************************
+ * 3) נשקים
+ *************************************************/
+const weapons = {
+    normal: { key: 'normal', bulletTexture: 'bullet', speed: 300, damage: 1 },
+    rocket: { key: 'rocket', bulletTexture: 'rocketBullet', speed: 200, damage: 4 },
+    laser:  { key: 'laser',  bulletTexture: 'laserBeam',    speed: 500, damage: 3 }
+};
+let currentWeapon = weapons.normal;
+
+/*************************************************
+ * 4) פונקציית isMobile()
+ *************************************************/
+function isMobile() {
+    return /Mobi|Android/i.test(navigator.userAgent);
+}
+
+/*************************************************
+ * 5) הגדרת config, בדיקת מובייל, והקמת המשחק
+ *************************************************/
 const config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
+    width: window.innerWidth,
+    height: window.innerHeight,
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
@@ -11,143 +264,18 @@ const config = {
         default: 'arcade',
         arcade: { gravity: { y: 0 }, debug: false }
     },
-    scene: { preload, create, update }
+    scene: [StartScene, MainScene]
 };
 
-let game = new Phaser.Game(config);
-
-// רפרנס לסצנה
-let mainScene;
-
-/* ========== נשקים אפשריים ========== */
-// העלינו נזק לרקטה ולייזר
-const weapons = {
-    normal: { key: 'normal', bulletTexture: 'bullet', speed: 300, damage: 1 },
-    rocket: { key: 'rocket', bulletTexture: 'rocketBullet', speed: 200, damage: 4 },
-    laser:  { key: 'laser',  bulletTexture: 'laserBeam',    speed: 500, damage: 3 }
-};
-let currentWeapon = weapons.normal;
-
-/* משתנים גלובליים */
-let player, cursors, bullets, mushrooms, powerups, bgMusic;
-let score = 0, lives = 3;
-let scoreText, livesText, waveText, bestScoreText;
-let canShoot = true;
-let shootDelay = 300;
-let weaponTimer = null;
-let doubleShotTimer = null;
-let mushroomSpeed = 100;
-let wave = 1;
-let waveInProgress = false;
-let doubleShot = false;
-let gameEnded = false; // כדי לעצור זימונים אחרי סיום
-
-/* למובייל */
-let movingLeft = false, movingRight = false;
-
-function preload() {
-    this.load.image('background', 'assets/background.png');
-    this.load.image('player', 'assets/player.png');
-    this.load.image('bullet', 'assets/bullet.png');
-    this.load.image('rocketBullet', 'assets/rocketBullet.png');
-    this.load.image('laserBeam', 'assets/laserBeam.png');
-    this.load.image('mushroom', 'assets/mushroom.png');
-    this.load.image('bossMushroom', 'assets/bossMushroom.png');
-    this.load.image('powerupRocket', 'assets/powerupRocket.png');
-    this.load.image('powerupLaser', 'assets/powerupLaser.png');
-    this.load.image('powerupDouble', 'assets/powerupDouble.png');
-
-    this.load.spritesheet('explosion', 'assets/explosion.png', {
-        frameWidth: 64,
-        frameHeight: 64
-    });
-
-    // קולות
-    this.load.audio('startGame', 'assets/startGame.wav');
-    this.load.audio('bgMusic', 'assets/bgMusic.mp3');
-    this.load.audio('shoot', 'assets/shoot.wav');
-    this.load.audio('playerHit', 'assets/playerHit.wav');
-    this.load.audio('gameOver', 'assets/gameOver.wav');
+if (!isMobile()) {
+    document.getElementById('game-container').innerHTML = "<h1 style='color: white; text-align: center; margin-top: 50%;'>משחק זה מותאם למובייל בלבד</h1>";
+} else {
+    new Phaser.Game(config);
 }
 
-function create() {
-    mainScene = this;
-    gameEnded = false;
-
-    this.sound.play('startGame', { volume: 0.5 });
-
-    this.bg = this.add.tileSprite(400, 300, 800, 600, 'background');
-    bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.5 });
-    bgMusic.play();
-
-    this.anims.create({
-        key: 'explode',
-        frames: this.anims.generateFrameNumbers('explosion', { start: 0, end: 23 }),
-        frameRate: 20,
-        hideOnComplete: true
-    });
-
-    player = this.physics.add.sprite(400, 550, 'player');
-    player.setCollideWorldBounds(true);
-    player.setScale(0.4);
-
-    bullets = this.physics.add.group({ maxSize: 30 });
-    mushrooms = this.physics.add.group();
-    powerups = this.physics.add.group();
-
-    cursors = this.input.keyboard.createCursorKeys();
-    this.input.keyboard.on('keydown-SPACE', () => shootBullet());
-
-    setupTouchControls();
-
-    scoreText = this.add.text(10, 10, 'Score: 0', { fontSize: '20px', fill: '#fff' });
-    livesText = this.add.text(10, 40, 'Lives: 3', { fontSize: '20px', fill: '#fff' });
-    waveText = this.add.text(400, 300, '', { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
-
-    let bestScore = localStorage.getItem('bestScore') || 0;
-    bestScoreText = this.add.text(600, 10, `Best: ${bestScore}`, { fontSize: '20px', fill: '#fff' });
-
-    // התנגשות
-    this.physics.add.overlap(bullets, mushrooms, hitMushroom, null, this);
-    this.physics.add.overlap(player, mushrooms, mushroomHitsPlayer, null, this);
-    this.physics.add.overlap(player, powerups, takePowerup, null, this);
-
-    startWave();
-
-    // זימון Power-Ups כל 6 שניות
-    this.time.addEvent({
-        delay: 6000,
-        callback: () => {
-            if (!gameEnded) spawnPowerup();
-        },
-        loop: true
-    });
-}
-
-function update() {
-    this.bg.tilePositionY -= 2;
-
-    if (cursors.left.isDown || movingLeft) {
-        player.setVelocityX(-200);
-    } else if (cursors.right.isDown || movingRight) {
-        player.setVelocityX(200);
-    } else {
-        player.setVelocityX(0);
-    }
-
-    bullets.children.each(bullet => {
-        if (bullet.active && bullet.y < -10) {
-            bullet.disableBody(true, true);
-            bullet.setActive(false).setVisible(false);
-        }
-    });
-
-    mushrooms.children.each(mush => {
-        if (mush.active && mush.y > 610) {
-            mush.destroy();
-        }
-    });
-}
+/*************************************************
+ * פונקציות הלוגיקה של המשחק
+ *************************************************/
 
 /* ========== גלים (Wave) ========== */
 function startWave() {
@@ -165,7 +293,6 @@ function startWave() {
 
 function spawnWave(waveNumber) {
     if (gameEnded) return;
-
     mushroomSpeed = 100 + (waveNumber - 1) * 10;
     let mushroomsToSpawn = 5 + waveNumber * 2;
 
@@ -187,16 +314,16 @@ function spawnWave(waveNumber) {
 }
 
 function spawnMushroom() {
-    let x = Phaser.Math.Between(50, 750);
+    let x = Phaser.Math.Between(50, window.innerWidth - 50);
     let mush = mushrooms.create(x, 0, 'mushroom');
     mush.setVelocityY(mushroomSpeed);
-    mush.setScale(0.7);
+    mush.setScale(0.8); // הגדלה קלה של הפטריות
     mush.body.setSize(mush.width * 0.9, mush.height * 0.9);
     mush.hp = 2;
 }
 
 function spawnBossMushroom() {
-    let x = Phaser.Math.Between(100, 700);
+    let x = Phaser.Math.Between(100, window.innerWidth - 100);
     let boss = mushrooms.create(x, 0, 'bossMushroom');
     boss.setScale(0.9);
     boss.body.setSize(boss.width * 0.9, boss.height * 0.9);
@@ -222,9 +349,6 @@ function shootBullet() {
     if (!canShoot || gameEnded) return;
     canShoot = false;
 
-    // debug: איזו ירייה נורה
-    console.log(`Shooting with weapon: ${currentWeapon.key}`);
-
     mainScene.sound.play('shoot', { volume: 0.5 });
 
     if (doubleShot) {
@@ -246,13 +370,13 @@ function shootOneBullet(offsetX) {
         bullet.body.enable = true;
 
         // גודל כדור לפי סוג הנשק
-        let bulletScale = 1.0; // ברירת מחדל - רגיל
+        let bulletScale = 1.0;
         if (currentWeapon.key === 'rocket') {
-            bulletScale = 0.6; // טיל קטן יותר
+            bulletScale = 0.6;
         } else if (currentWeapon.key === 'laser') {
-            bulletScale = 0.8; // לייזר בינוני
+            bulletScale = 0.8;
         }
-        bullet.setScale(bulletScale);
+        bullet.setScale(bulletScale * 1.5); // הכפלה קלה
         bullet.body.setSize(bullet.width * 0.9, bullet.height * 0.9);
 
         bullet.setVelocityY(-currentWeapon.speed);
@@ -260,10 +384,8 @@ function shootOneBullet(offsetX) {
     }
 }
 
-/* ========== פגיעה כדור-פטריה ========== */
 function hitMushroom(bullet, mushroom) {
     mushroom.hp -= bullet.damage;
-
     bullet.disableBody(true, true);
     bullet.setActive(false).setVisible(false);
 
@@ -305,15 +427,51 @@ function gameOver() {
 
     mainScene.sound.play('gameOver', { volume: 0.5 });
 
-    mainScene.add.text(400, 300, 'Game Over', {
-        fontSize: '50px',
-        fill: '#ff0000'
-    }).setOrigin(0.5);
+    mainScene.add.text(
+        window.innerWidth / 2,
+        window.innerHeight / 2 - 20,
+        'Game Over',
+        {
+            fontSize: window.innerWidth < 600 ? '40px' : '50px',
+            fill: '#ff0000'
+        }
+    ).setOrigin(0.5);
 
-    mainScene.add.text(400, 360, 'Press F5 to Restart', {
-        fontSize: '20px',
-        fill: '#fff'
-    }).setOrigin(0.5);
+    mainScene.add.text(
+        window.innerWidth / 2,
+        window.innerHeight / 2 + 20,
+        'לחץ על Restart להתחיל מחדש',
+        {
+            fontSize: window.innerWidth < 600 ? '16px' : '20px',
+            fill: '#fff'
+        }
+    ).setOrigin(0.5);
+
+    // כפתור Restart
+    let restartText = mainScene.add.text(
+        window.innerWidth / 2,
+        window.innerHeight / 2 + 80,
+        'Restart',
+        {
+            fontSize: window.innerWidth < 600 ? '20px' : '30px',
+            fill: '#fff',
+            backgroundColor: '#000',
+            padding: { x: 10, y: 10 }
+        }
+    ).setOrigin(0.5).setInteractive();
+
+    // אפקט Tween קטן בלחיצה
+    restartText.on('pointerdown', () => {
+        mainScene.tweens.add({
+            targets: restartText,
+            scale: 1.2,
+            duration: 100,
+            yoyo: true,
+            onComplete: () => {
+                mainScene.scene.restart();
+            }
+        });
+    });
 
     let bestScore = localStorage.getItem('bestScore') || 0;
     if (score > bestScore) {
@@ -324,7 +482,6 @@ function gameOver() {
 /* ========== בונוסים (Power-Ups) ========== */
 function takePowerup(player, powerup) {
     if (gameEnded) return;
-    console.log('Collected powerup:', powerup.texture.key);
     powerup.destroy();
 
     switch (powerup.texture.key) {
@@ -340,13 +497,11 @@ function takePowerup(player, powerup) {
     }
 }
 
-/* מחליף נשק לנשק מסוים (rocket/laser) ל-5 שניות */
+/* החלפת נשק לנשק מסוים (rocket/laser) ל-5 שניות */
 function pickUpWeapon(weaponKey) {
-    // בטלים טיימר נשק קודם אם יש
     if (weaponTimer) {
         mainScene.time.removeEvent(weaponTimer);
     }
-    // מחליפים נשק
     switchWeapon(weaponKey);
     weaponTimer = mainScene.time.addEvent({
         delay: 5000,
@@ -356,7 +511,7 @@ function pickUpWeapon(weaponKey) {
     });
 }
 
-/* מפעיל כפל יריות ל-5 שניות */
+/* כפל יריות ל-5 שניות */
 function pickUpDoubleShot() {
     if (doubleShotTimer) {
         mainScene.time.removeEvent(doubleShotTimer);
@@ -370,17 +525,15 @@ function pickUpDoubleShot() {
     });
 }
 
-/* משנה את currentWeapon */
 function switchWeapon(weaponKey) {
     currentWeapon = weapons[weaponKey];
-    console.log(`Switched to weapon: ${weaponKey}`);
 }
 
 /* זימון Power-Ups */
 function spawnPowerup() {
     if (gameEnded) return;
-    console.log('Spawning powerup...');
-    let x = Phaser.Math.Between(50, 750);
+
+    let x = Phaser.Math.Between(50, window.innerWidth - 50);
     let rand = Math.random();
     let texture;
 
@@ -391,11 +544,10 @@ function spawnPowerup() {
     } else {
         texture = 'powerupDouble';
     }
-    console.log('Powerup chosen:', texture);
 
     let p = powerups.create(x, 0, texture);
     p.setVelocityY(120);
-    p.setScale(0.5);
+    p.setScale(0.4); // הקטנה קלה של הפאוור אפס
     p.body.setSize(p.width * 0.9, p.height * 0.9);
 }
 
@@ -411,7 +563,11 @@ function setupTouchControls() {
     rightBtn.addEventListener('touchstart', () => movingRight = true);
     rightBtn.addEventListener('touchend', () => movingRight = false);
 
+    // 3) לחיצה ארוכה במובייל – נדליק/נכבה את isShooting
     shootBtn.addEventListener('touchstart', () => {
-        shootBullet();
+        isShooting = true;
+    });
+    shootBtn.addEventListener('touchend', () => {
+        isShooting = false;
     });
 }
