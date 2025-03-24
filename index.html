@@ -1,40 +1,56 @@
-<!DOCTYPE html>
-<html lang="he">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>משחק מובייל</title>
-  
-  <!-- Phaser 3 -->
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
-  
-  <!-- עיצוב -->
-  <link rel="stylesheet" href="styles.css"/>
-</head>
-<body>
-  <!-- הקנבס של Phaser -->
-  <div id="game-container"></div>
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+  background-color: black;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
 
-  <!-- פקדים למובייל -->
-  <div id="mobile-controls">
-      <button id="left-btn">⬅️</button>
-      <button id="right-btn">➡️</button>
-      <button id="shoot-btn">🔫</button>
-  </div>
+canvas {
+  display: block;
+}
 
-  <!-- קובץ המשחק -->
-  <script src="game.js"></script>
+/* עיצוב פקדים למובייל */
+#mobile-controls {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  z-index: 10;
+}
 
-  <script>
-    // מניעת לחיצות ממוקדות
-    document.querySelectorAll("button").forEach(button => {
-      button.addEventListener("click", event => {
-          event.preventDefault();
-          event.target.blur();
-      });
-    });
-    // מניעת תפריט לחיצה ארוכה
-    document.addEventListener('contextmenu', event => event.preventDefault());
-  </script>
-</body>
-</html>
+button {
+  outline: none;
+  border: none;
+  background-color: rgba(255, 255, 255, 0.3);
+  padding: 15px 20px;
+  font-size: 24px;
+  border-radius: 10px;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+button:focus {
+  outline: none;
+}
+
+/* כפתור Restart עם רקע כהה ואפקט hover */
+.restart-btn {
+  background-color: #000;
+  color: #fff;
+  padding: 10px 20px;
+  font-size: 24px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.restart-btn:hover {
+  background-color: #333;
+}
